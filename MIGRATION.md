@@ -29,6 +29,17 @@ Create or invite each photographer/admin/client through Supabase Auth, then link
 their new Auth UUID to the migrated application row. A password-reset rollout is
 the safest production migration.
 
+The included migration command imports the existing photographers, client,
+subscriptions, and private gallery files with temporary Auth passwords:
+
+```powershell
+npm run legacy:migrate
+```
+
+It is idempotent and reads the local XAMPP database and uploads directory by
+default. Photographer passwords should be reset by email. Client passwords can
+then be reset from the photographer dashboard.
+
 ## Media
 
 The public profile, portfolio, and service images from the PHP project are

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "admin:create": "node --env-file=.env.local scripts/create-admin.mjs"
+    "admin:create": "node --env-file=.env.local scripts/create-admin.mjs",
+    "legacy:migrate": "node --env-file=.env.local scripts/migrate-legacy.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.10.3",
