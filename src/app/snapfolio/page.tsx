@@ -19,7 +19,7 @@ import { getPricingPlans, getProductSettings } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "SnapFolio Photography Management",
+  title: { absolute: "SnapFolio Photography Management" },
   description: "Private client galleries and photography studio management.",
 };
 

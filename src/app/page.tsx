@@ -86,7 +86,7 @@ export default async function PortfolioHome({
               </div>
               <div className="relative aspect-[4/5] overflow-hidden rounded-[2rem] shadow-[0_35px_90px_rgba(35,29,22,.2)]">
                 <Image
-                  src="/images/profile.webp"
+                  src={settings.hero_image_url || "/legacy/profile/hero.jpeg"}
                   alt={settings.author_name}
                   fill
                   priority
@@ -106,7 +106,7 @@ export default async function PortfolioHome({
           <div className="container-shell grid gap-12 lg:grid-cols-[.8fr_1.2fr] lg:items-center">
             <div className="relative aspect-[4/5] overflow-hidden rounded-[1.8rem]">
               <Image
-                src="/images/about.webp"
+                src={settings.about_image_url || "/legacy/profile/about.jpeg"}
                 alt={settings.author_name}
                 fill
                 sizes="(max-width: 1024px) 100vw, 38vw"
@@ -271,6 +271,7 @@ export default async function PortfolioHome({
           </div>
         </section>
 
+        {testimonials.length ? (
         <section id="testimonials" className="bg-ink py-20 text-white sm:py-28">
           <div className="container-shell">
             <SectionHeading eyebrow="Client feedback" title="Trusted to make complex work feel clear." dark center />
@@ -288,6 +289,7 @@ export default async function PortfolioHome({
             </div>
           </div>
         </section>
+        ) : null}
 
         <section id="contact" className="bg-copper py-20 text-white sm:py-28">
           <div className="container-shell grid gap-10 lg:grid-cols-[.85fr_1.15fr]">

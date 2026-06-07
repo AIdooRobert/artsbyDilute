@@ -12,6 +12,7 @@ to Supabase.
 | `portfolio_items` | `portfolio_items` + public `public-media` bucket |
 | `services` | `services` + public `public-media` bucket |
 | `site_settings` | `site_settings` |
+| SnapFolio product copy | `product_settings` |
 | `contact_messages` | `contact_messages` |
 | `team_members` | `team_members` |
 | `skills` | `skills` |
@@ -30,9 +31,11 @@ the safest production migration.
 
 ## Media
 
-Upload public portfolio, service, team, testimonial, and logo files to the
-`public-media` bucket and store their public URLs. Upload client photos to the
-private `client-photos` bucket using this path format:
+The public profile, portfolio, and service images from the PHP project are
+already copied into `public/legacy` for the initial deployment. They can later
+be moved to the Supabase `public-media` bucket without changing the data model.
+
+Upload client photos to the private `client-photos` bucket using this path format:
 
 ```text
 PHOTOGRAPHER_UUID/CLIENT_UUID/FILE_NAME

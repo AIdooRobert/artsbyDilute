@@ -14,11 +14,11 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: {
-    default: "SnapFolio",
-    template: "%s | SnapFolio",
+    default: "Robert Aidoo | @rtbyDilute",
+    template: "%s | Robert Aidoo",
   },
   description:
-    "A modern photography portfolio, studio dashboard, and private client gallery platform.",
+    "The portfolio of Robert Aidoo, a Ghana-based developer, designer, photographer, and digital creator.",
 };
 
 export default function RootLayout({

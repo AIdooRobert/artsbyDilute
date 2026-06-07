@@ -8,23 +8,23 @@ export function SiteFooter() {
         <div>
           <Link href="/" className="inline-flex items-center gap-2 text-xl font-black">
             <Code2 size={22} />
-            @rtsbyDilute
+            @rtbyDilute
           </Link>
           <p className="mt-4 max-w-lg text-sm leading-7 text-white/58">
             Design, software, and digital products built with clarity and care.
           </p>
         </div>
         <div className="flex items-center gap-4 text-white/64">
-          <a href="mailto:hello@snapfolio.example" aria-label="Email">
+          <a href="mailto:robertaidoo62@gmail.com" aria-label="Email">
             <Mail size={19} />
           </a>
-          <a href="https://github.com" aria-label="GitHub">
+          <a href="https://github.com/AIdooRobert" aria-label="GitHub">
             <Code2 size={19} />
           </a>
-          <a href="https://linkedin.com" aria-label="LinkedIn">
+          <a href="https://linkedin.com/in/Robert-Aidoo" aria-label="LinkedIn">
             <BriefcaseBusiness size={19} />
           </a>
-          <span className="text-xs">© {new Date().getFullYear()} SnapFolio</span>
+          <span className="text-xs">&copy; {new Date().getFullYear()} Robert Aidoo</span>
         </div>
       </div>
     </footer>

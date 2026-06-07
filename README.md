@@ -1,6 +1,11 @@
-# SnapFolio Next
+# Robert Aidoo Portfolio + SnapFolio
 
-The complete React/Node replacement for the original PHP SnapFolio project.
+The React/Node replacement for the original PHP project. It deliberately keeps
+the personal portfolio and the photography management product distinct:
+
+- `/` is Robert Aidoo's single-page personal portfolio.
+- `/snapfolio` is the SnapFolio photography management landing page.
+- `/admin` is the shared superadmin console for both experiences.
 
 ## Stack
 
@@ -13,13 +18,14 @@ The complete React/Node replacement for the original PHP SnapFolio project.
 
 ## Included functionality
 
-- Responsive public portfolio, services, pricing, project details, and contact form
+- Responsive one-page personal portfolio, project details, services, and contact form
+- Separate SnapFolio product landing page and pricing
 - Photographer signup, login, password reset, Paystack checkout, and plan upgrades
 - Photographer dashboard with client creation, credential resets, usage limits, uploads, and gallery deletion
 - Photographer profile and plan-gated custom branding
 - Private client login, branded gallery, fullscreen viewer, individual downloads, and ZIP download
-- Admin dashboard and CRUD for portfolio, services, team, skills, resume, testimonials, and pricing
-- Admin management for messages, photographers, subscriptions, settings, users, and activity logs
+- Superadmin CRUD for portfolio, services, team, skills, resume, testimonials, and portfolio settings
+- Superadmin management for SnapFolio settings, pricing, messages, photographers, subscriptions, users, and activity logs
 
 ## Local setup
 
@@ -99,6 +105,6 @@ Add every `.env.local` value to Vercel Project Settings. Set
 
 ## Existing PHP data
 
-The PHP app remains untouched in `C:\xampp\htdocs\SnapFolio`. The new Supabase
-schema maps the existing tables, but the seed intentionally starts clean.
-See `MIGRATION.md` for the legacy table and media mapping.
+The PHP app remains untouched in `C:\xampp\htdocs\SnapFolio`. Its public
+portfolio content and media have been carried into the seed and `public/legacy`.
+See `MIGRATION.md` for the remaining account and private-gallery migration work.

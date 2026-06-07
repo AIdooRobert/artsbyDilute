@@ -23,7 +23,7 @@ export function SiteHeader() {
           <span className="grid size-9 place-items-center rounded-full bg-ink text-white">
             <Code2 size={18} />
           </span>
-          @rtsbyDilute
+          @rtbyDilute
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">

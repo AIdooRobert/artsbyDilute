@@ -4,7 +4,7 @@ import { ProductHeader } from "@/components/product-header";
 import { SectionHeading } from "@/components/section-heading";
 import { getPricingPlans } from "@/lib/data";
 
-export const metadata = { title: "Pricing" };
+export const metadata = { title: { absolute: "SnapFolio Pricing" } };
 export const dynamic = "force-dynamic";
 
 export default async function PricingPage() {
