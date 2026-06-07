@@ -14,7 +14,7 @@ export function PricingCard({
   const current = currentPlanId === plan.id;
   const href = currentPlanId
     ? `/photographer/checkout?plan=${plan.id}&mode=upgrade`
-    : `/photographer/signup?plan=${plan.id}`;
+    : `/photographer/signup?plan=${plan.slug}`;
 
   return (
     <article

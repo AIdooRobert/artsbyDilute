@@ -84,7 +84,7 @@ export async function login(
 
 const signupSchema = z
   .object({
-    planId: z.string().uuid(),
+    planRef: z.string().trim().min(1).max(100),
     photographerName: z.string().trim().min(2).max(120),
     businessName: z.string().trim().min(2).max(160),
     email: z.string().trim().email(),
@@ -108,7 +108,7 @@ export async function registerPhotographer(formData: FormData) {
   }
 
   const parsed = signupSchema.safeParse({
-    planId: formData.get("plan_id"),
+    planRef: formData.get("plan_id"),
     photographerName: formData.get("photographer_name"),
     businessName: formData.get("business_name"),
     email: formData.get("email"),
@@ -118,19 +118,28 @@ export async function registerPhotographer(formData: FormData) {
   });
 
   if (!parsed.success) {
-    const message = parsed.error.issues[0]?.message ?? "Please check the form.";
-    redirect(`/photographer/signup?plan=${formData.get("plan_id")}&error=${encodeURIComponent(message)}`);
+    redirect("/photographer/signup?error=Please+check+the+form.");
   }
 
   const input = parsed.data;
   const admin = createAdminClient();
+  const planReference = input.planRef.toLowerCase();
+  const planLookup = z.string().uuid().safeParse(planReference).success
+    ? admin.from("pricing_plans").select("*").eq("id", planReference)
+    : admin.from("pricing_plans").select("*").eq("slug", planReference);
   const [{ data: existingUsername }, { data: plan }] = await Promise.all([
-    admin.from("photographers").select("id").eq("username", input.username.toLowerCase()).maybeSingle(),
-    admin.from("pricing_plans").select("*").eq("id", input.planId).eq("is_active", true).maybeSingle(),
+    admin
+      .from("photographers")
+      .select("id")
+      .eq("username", input.username.toLowerCase())
+      .maybeSingle(),
+    planLookup.eq("is_active", true).maybeSingle(),
   ]);
 
   if (existingUsername) {
-    redirect(`/photographer/signup?plan=${input.planId}&error=Username+already+exists.`);
+    redirect(
+      `/photographer/signup?plan=${plan?.slug ?? planReference}&error=Username+already+exists.`,
+    );
   }
   if (!plan) redirect("/pricing?error=plan");
 
@@ -146,7 +155,7 @@ export async function registerPhotographer(formData: FormData) {
 
   if (authError || !authData.user) {
     redirect(
-      `/photographer/signup?plan=${input.planId}&error=${encodeURIComponent(authError?.message ?? "Unable to create account.")}`,
+      `/photographer/signup?plan=${plan.slug}&error=${encodeURIComponent(authError?.message ?? "Unable to create account.")}`,
     );
   }
 
@@ -163,7 +172,7 @@ export async function registerPhotographer(formData: FormData) {
       photographer_name: input.photographerName,
       business_name: input.businessName,
       email: input.email.toLowerCase(),
-      pricing_plan_id: input.planId,
+      pricing_plan_id: plan.id,
       is_active: false,
     })
     .select()
@@ -172,7 +181,7 @@ export async function registerPhotographer(formData: FormData) {
   if (profileError || !photographer) {
     await admin.auth.admin.deleteUser(authData.user.id);
     redirect(
-      `/photographer/signup?plan=${input.planId}&error=${encodeURIComponent(profileError?.message ?? "Unable to create profile.")}`,
+      `/photographer/signup?plan=${plan.slug}&error=${encodeURIComponent(profileError?.message ?? "Unable to create profile.")}`,
     );
   }
 
@@ -181,7 +190,7 @@ export async function registerPhotographer(formData: FormData) {
     .from("subscriptions")
     .insert({
       photographer_id: photographer.id,
-      pricing_plan_id: input.planId,
+      pricing_plan_id: plan.id,
       amount: plan.price_min,
       status: "pending",
       transaction_id: reference,
@@ -193,7 +202,7 @@ export async function registerPhotographer(formData: FormData) {
   if (subscriptionError || !subscription) {
     await admin.auth.admin.deleteUser(authData.user.id);
     redirect(
-      `/photographer/signup?plan=${input.planId}&error=Unable+to+start+subscription.`,
+      `/photographer/signup?plan=${plan.slug}&error=Unable+to+start+subscription.`,
     );
   }
 
