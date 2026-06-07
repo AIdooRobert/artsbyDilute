@@ -13,7 +13,13 @@ export default async function PhotographerSignup({
   searchParams: Promise<{ plan?: string; error?: string }>;
 }) {
   const [query, plans] = await Promise.all([searchParams, getPricingPlans()]);
-  const plan = plans.find((item) => item.id === query.plan) ?? plans[0];
+  const requestedPlan = query.plan?.toLowerCase();
+  const plan =
+    plans.find(
+      (item) =>
+        item.id.toLowerCase() === requestedPlan ||
+        item.slug.toLowerCase() === requestedPlan,
+    ) ?? plans[0];
 
   return (
     <AuthShell
@@ -49,7 +55,7 @@ export default async function PhotographerSignup({
         </div>
       </div>
       <form action={registerPhotographer} className="grid gap-4">
-        <input type="hidden" name="plan_id" value={plan.id} />
+        <input type="hidden" name="plan_id" value={plan.slug} />
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-2 text-sm font-bold">
             Your name
