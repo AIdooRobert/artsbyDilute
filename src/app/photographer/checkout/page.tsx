@@ -4,6 +4,7 @@ import { AuthShell } from "@/components/auth-shell";
 import { StatusMessage } from "@/components/status-message";
 import { formatCurrency } from "@/lib/data";
 import { getPhotographerByUserId } from "@/lib/photographer";
+import { getPaystackMode } from "@/lib/paystack";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -47,6 +48,20 @@ export default async function CheckoutPage({
     .select("*")
     .eq("id", planId)
     .maybeSingle();
+  const paystackMode = getPaystackMode();
+  const testBypassEnabled =
+    paystackMode === "unconfigured" &&
+    process.env.ALLOW_TEST_PAYMENTS === "true";
+  const paymentAvailable =
+    paystackMode !== "unconfigured" || testBypassEnabled;
+  const checkoutError =
+    query.error === "payment-unavailable"
+      ? "Paystack is not configured yet. Please contact the administrator."
+      : query.error === "payment-init"
+        ? "Paystack could not start the payment. Please try again shortly."
+        : query.error
+          ? "The payment could not be prepared. Please try again."
+          : undefined;
 
   return (
     <AuthShell
@@ -54,7 +69,20 @@ export default async function CheckoutPage({
       copy="Paystack handles the payment securely. SnapFolio verifies both the status and amount before activating the plan."
       backHref={photographer.is_active ? "/photographer/upgrade" : "/pricing"}
     >
-      <StatusMessage error={query.error ? "The payment could not be prepared. Please try again." : undefined} />
+      <StatusMessage
+        error={
+          checkoutError ??
+          (!paymentAvailable
+            ? "Paystack is not configured yet. Please contact the administrator."
+            : undefined)
+        }
+      />
+      {paystackMode === "test" ? (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+          Paystack test mode is active. Use Paystack test payment details; no real
+          money will be charged.
+        </div>
+      ) : null}
       <div className="rounded-2xl bg-cream p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -80,8 +108,11 @@ export default async function CheckoutPage({
       <form action={beginPayment}>
         <input type="hidden" name="plan_id" value={plan?.id ?? ""} />
         <input type="hidden" name="subscription_id" value={subscriptionId ?? ""} />
-        <button className="button-primary w-full">
-          <CreditCard size={17} /> Pay securely with Paystack
+        <button className="button-primary w-full disabled:cursor-not-allowed disabled:opacity-50" disabled={!paymentAvailable}>
+          <CreditCard size={17} />{" "}
+          {paystackMode === "test"
+            ? "Continue with Paystack test"
+            : "Pay securely with Paystack"}
         </button>
       </form>
     </AuthShell>

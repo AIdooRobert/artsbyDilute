@@ -21,6 +21,14 @@ type PaystackVerifyResponse = {
   };
 };
 
+export type PaystackMode = "live" | "test" | "unconfigured";
+
+export function getPaystackMode(): PaystackMode {
+  const key = process.env.PAYSTACK_SECRET_KEY;
+  if (!key) return "unconfigured";
+  return key.startsWith("sk_live_") ? "live" : "test";
+}
+
 function getSecretKey() {
   const key = process.env.PAYSTACK_SECRET_KEY;
   if (!key) throw new Error("PAYSTACK_SECRET_KEY is not configured.");

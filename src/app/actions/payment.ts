@@ -4,7 +4,17 @@ import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPhotographerByUserId } from "@/lib/photographer";
-import { initializePaystackTransaction } from "@/lib/paystack";
+import { getPaystackMode, initializePaystackTransaction } from "@/lib/paystack";
+
+function checkoutErrorUrl(
+  error: string,
+  planId: string,
+  subscriptionId?: string,
+) {
+  const params = new URLSearchParams({ error, plan: planId });
+  if (subscriptionId) params.set("subscription", subscriptionId);
+  return `/photographer/checkout?${params.toString()}`;
+}
 
 export async function beginPayment(formData: FormData) {
   const user = await requireRole("photographer");
@@ -22,6 +32,20 @@ export async function beginPayment(formData: FormData) {
     .eq("is_active", true)
     .maybeSingle();
   if (!plan) redirect("/pricing?error=plan");
+
+  const paystackMode = getPaystackMode();
+  const allowTestBypass =
+    paystackMode === "unconfigured" &&
+    process.env.ALLOW_TEST_PAYMENTS === "true";
+  if (paystackMode === "unconfigured" && !allowTestBypass) {
+    redirect(
+      checkoutErrorUrl(
+        "payment-unavailable",
+        plan.id,
+        existingSubscriptionId,
+      ),
+    );
+  }
 
   let subscriptionId = existingSubscriptionId;
   let reference = "";
@@ -54,7 +78,7 @@ export async function beginPayment(formData: FormData) {
     subscriptionId = subscription.id;
   }
 
-  if (!process.env.PAYSTACK_SECRET_KEY && process.env.ALLOW_TEST_PAYMENTS === "true") {
+  if (allowTestBypass) {
     await admin
       .from("subscriptions")
       .update({
@@ -70,17 +94,27 @@ export async function beginPayment(formData: FormData) {
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const transaction = await initializePaystackTransaction({
-    email: photographer.email,
-    amount: Number(plan.price_min),
-    reference,
-    callbackUrl: `${siteUrl}/api/paystack/callback`,
-    metadata: {
-      subscription_id: subscriptionId,
-      photographer_id: photographer.id,
-      plan_id: plan.id,
-    },
-  });
+  let authorizationUrl: string;
+  try {
+    const transaction = await initializePaystackTransaction({
+      email: photographer.email,
+      amount: Number(plan.price_min),
+      reference,
+      callbackUrl: `${siteUrl}/api/paystack/callback`,
+      metadata: {
+        subscription_id: subscriptionId,
+        photographer_id: photographer.id,
+        plan_id: plan.id,
+      },
+    });
+    authorizationUrl = transaction.authorization_url;
+  } catch (error) {
+    console.error(
+      "Paystack initialization failed:",
+      error instanceof Error ? error.message : "Unknown error",
+    );
+    redirect(checkoutErrorUrl("payment-init", plan.id, subscriptionId));
+  }
 
-  redirect(transaction.authorization_url);
+  redirect(authorizationUrl);
 }
