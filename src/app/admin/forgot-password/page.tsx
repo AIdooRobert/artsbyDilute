@@ -1,6 +1,7 @@
 import { Mail } from "lucide-react";
 import { requestPasswordReset } from "@/app/actions/auth";
 import { AuthShell } from "@/components/auth-shell";
+import { SubmitButton } from "@/components/submit-button";
 
 export const metadata = { title: "Reset superadmin password" };
 
@@ -28,9 +29,12 @@ export default async function AdminForgotPassword({
             Email address
             <input name="email" type="email" className="field" required />
           </label>
-          <button className="button-primary w-full">
+          <SubmitButton
+            className="button-primary w-full disabled:cursor-wait disabled:opacity-60"
+            pendingLabel="Sending reset link..."
+          >
             <Mail size={17} /> Send reset link
-          </button>
+          </SubmitButton>
         </form>
       )}
     </AuthShell>

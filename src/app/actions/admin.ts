@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { adminSections } from "@/lib/admin-config";
 import { requireRole } from "@/lib/supabase/auth";
@@ -17,10 +18,16 @@ async function logAdminAction(
   details: Record<string, unknown>,
 ) {
   const supabase = createAdminClient();
+  const requestHeaders = await headers();
+  const ipAddress =
+    requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    requestHeaders.get("x-real-ip") ||
+    null;
   await supabase.from("admin_activity_logs").insert({
     admin_id: adminId,
     action,
     details,
+    ip_address: ipAddress,
   });
 }
 
@@ -172,18 +179,51 @@ export async function updatePaymentStatus(formData: FormData) {
   const { user, supabase } = await getAdmin();
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");
+  const adminNotes = String(formData.get("admin_notes") ?? "").trim();
   if (!["pending", "active", "failed", "cancelled", "refunded"].includes(status)) {
     redirect("/admin/payments?error=Invalid+status.");
   }
-  await supabase
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("photographer_id, pricing_plan_id, metadata, transaction_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (!subscription) redirect("/admin/payments?error=Payment+not+found.");
+
+  const { error } = await supabase
     .from("subscriptions")
     .update({
       status,
-      metadata: { admin_notes: String(formData.get("admin_notes") ?? "") },
+      last_error: status === "failed" ? adminNotes || "Marked failed by an administrator." : null,
+      metadata: {
+        ...(subscription.metadata ?? {}),
+        admin_notes: adminNotes,
+        admin_updated_at: new Date().toISOString(),
+      },
     })
     .eq("id", id);
+  if (error) redirect(`/admin/payments?error=${encodeURIComponent(error.message)}`);
+
+  if (status === "active") {
+    await supabase
+      .from("photographers")
+      .update({
+        is_active: true,
+        pricing_plan_id: subscription.pricing_plan_id,
+      })
+      .eq("id", subscription.photographer_id);
+  }
+
+  await supabase.from("payment_events").insert({
+    subscription_id: id,
+    reference: subscription.transaction_id,
+    event_type: "admin_override",
+    status,
+    details: { notes: adminNotes, admin_id: user.id },
+  });
   await logAdminAction(user.id, "update_payment", { id, status });
   revalidatePath("/admin/payments");
+  redirect("/admin/payments?success=Payment+updated.");
 }
 
 export async function createAdminUser(formData: FormData) {
@@ -191,7 +231,7 @@ export async function createAdminUser(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const displayName = String(formData.get("display_name") ?? "").trim();
-  if (!email || password.length < 8) redirect("/admin/users?error=Enter+a+valid+email+and+password.");
+  if (!email || password.length < 12) redirect("/admin/users?error=Enter+a+valid+email+and+a+12-character+password.");
 
   const { data, error } = await supabase.auth.admin.createUser({
     email,

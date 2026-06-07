@@ -25,7 +25,7 @@ export default async function PhotographerDashboard({
   const dashboard = await getPhotographerDashboard(user.id);
   if (!dashboard) return null;
 
-  const { photographer, clients, usage } = dashboard;
+  const { photographer, clients, subscriptions, usage } = dashboard;
   const plan = photographer.pricing_plans;
   const galleryPercent = Math.min(100, (usage.galleries / Math.max(plan?.max_galleries ?? 1, 1)) * 100);
   const storagePercent = Math.min(100, (usage.storageGb / Math.max(plan?.max_storage_gb ?? 1, 1)) * 100);
@@ -73,6 +73,52 @@ export default async function PhotographerDashboard({
               </article>
             );
           })}
+        </section>
+
+        <section className="card mt-6 overflow-hidden">
+          <div className="border-b border-black/8 p-6">
+            <h2 className="text-lg font-black">Payment history</h2>
+            <p className="mt-1 text-sm text-black/48">
+              Your recent subscription attempts and completed payments.
+            </p>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Plan</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.length ? (
+                  subscriptions.map((subscription) => (
+                    <tr key={subscription.id}>
+                      <td>{new Date(subscription.created_at).toLocaleDateString()}</td>
+                      <td>{subscription.pricing_plans?.name ?? "Plan"}</td>
+                      <td>
+                        {subscription.pricing_plans?.currency ?? "GHS"}{" "}
+                        {Number(subscription.amount).toFixed(2)}
+                      </td>
+                      <td className="capitalize">{subscription.status}</td>
+                      <td>
+                        <code className="text-xs">{subscription.transaction_id}</code>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="text-center text-black/42">
+                      No payment history yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[.85fr_1.15fr]">

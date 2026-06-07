@@ -32,5 +32,8 @@ export async function requireRole(role: Role) {
 
   const currentRole = await getCurrentRole();
   if (currentRole !== role) redirect("/");
+  if (role === "admin" && user.app_metadata.must_change_password) {
+    redirect("/admin/security");
+  }
   return user;
 }

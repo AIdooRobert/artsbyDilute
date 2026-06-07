@@ -12,6 +12,7 @@ import { AdminEntityManager } from "@/components/admin-entity-manager";
 import { AdminShell } from "@/components/admin-shell";
 import { StatusMessage } from "@/components/status-message";
 import { adminSections } from "@/lib/admin-config";
+import { getPaystackMode } from "@/lib/paystack";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -179,38 +180,93 @@ async function renderPayments(admin: ReturnType<typeof createAdminClient>) {
     .from("subscriptions")
     .select("*, photographers(photographer_name, email), pricing_plans(name, currency)")
     .order("created_at", { ascending: false });
+  const subscriptionIds = (data ?? []).map((row) => row.id);
+  const { data: events } = subscriptionIds.length
+    ? await admin
+        .from("payment_events")
+        .select("*")
+        .in("subscription_id", subscriptionIds)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+  const latestEvent = new Map<
+    string,
+    {
+      subscription_id: string | null;
+      event_type: string;
+      status: string;
+    }
+  >();
+  for (const event of events ?? []) {
+    if (event.subscription_id && !latestEvent.has(event.subscription_id)) {
+      latestEvent.set(event.subscription_id, event);
+    }
+  }
+  const paystackMode = getPaystackMode();
+
   return (
-    <section className="card table-wrap">
-      <table className="data-table">
-        <thead>
-          <tr><th>Date</th><th>Photographer</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Update</th></tr>
-        </thead>
-        <tbody>
-          {(data ?? []).map((row) => (
-            <tr key={row.id}>
-              <td>{new Date(row.created_at).toLocaleDateString()}</td>
-              <td>{row.photographers?.photographer_name}<br /><span className="text-xs text-black/40">{row.photographers?.email}</span></td>
-              <td>{row.pricing_plans?.name}</td>
-              <td>{row.pricing_plans?.currency} {row.amount}</td>
-              <td><code className="text-xs">{row.transaction_id}</code></td>
-              <td>{row.status}</td>
-              <td>
-                <form action={updatePaymentStatus} className="flex min-w-[280px] gap-2">
-                  <input type="hidden" name="id" value={row.id} />
-                  <select name="status" defaultValue={row.status} className="field">
-                    {["pending", "active", "failed", "cancelled", "refunded"].map((status) => (
-                      <option key={status}>{status}</option>
-                    ))}
-                  </select>
-                  <input name="admin_notes" className="field" placeholder="Notes" />
-                  <button className="button-secondary">Save</button>
-                </form>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
+    <div className="grid gap-5">
+      <div
+        className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+          paystackMode === "live"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : paystackMode === "test"
+              ? "border-amber-200 bg-amber-50 text-amber-900"
+              : "border-red-200 bg-red-50 text-red-900"
+        }`}
+      >
+        Paystack mode: <span className="uppercase">{paystackMode}</span>
+        {paystackMode === "test"
+          ? ". Test transactions do not charge real money."
+          : null}
+      </div>
+      <section className="card table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr><th>Date</th><th>Photographer</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Status</th><th>Diagnostics</th><th>Update</th></tr>
+          </thead>
+          <tbody>
+            {(data ?? []).map((row) => {
+              const event = latestEvent.get(row.id);
+              return (
+                <tr key={row.id}>
+                  <td>{new Date(row.created_at).toLocaleDateString()}</td>
+                  <td>{row.photographers?.photographer_name}<br /><span className="text-xs text-black/40">{row.photographers?.email}</span></td>
+                  <td>{row.pricing_plans?.name}</td>
+                  <td>{row.pricing_plans?.currency} {row.amount}</td>
+                  <td><code className="text-xs">{row.transaction_id}</code></td>
+                  <td>{row.status}</td>
+                  <td className="max-w-xs text-xs">
+                    {row.last_error ? (
+                      <span className="text-red-700">{row.last_error}</span>
+                    ) : event ? (
+                      <span>
+                        {event.event_type}: {event.status}
+                      </span>
+                    ) : row.initialized_at ? (
+                      <span>Initialized {new Date(row.initialized_at).toLocaleString()}</span>
+                    ) : (
+                      "No events"
+                    )}
+                  </td>
+                  <td>
+                    <form action={updatePaymentStatus} className="flex min-w-[280px] gap-2">
+                      <input type="hidden" name="id" value={row.id} />
+                      <select name="status" defaultValue={row.status} className="field">
+                        {["pending", "active", "failed", "cancelled", "refunded"].map((status) => (
+                          <option key={status}>{status}</option>
+                        ))}
+                      </select>
+                      <input name="admin_notes" className="field" placeholder="Notes" />
+                      <button className="button-secondary">Save</button>
+                    </form>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </section>
+    </div>
   );
 }
 
@@ -298,7 +354,7 @@ async function renderUsers(admin: ReturnType<typeof createAdminClient>, currentU
         <h2 className="text-lg font-black">Create administrator</h2>
         <label className="grid gap-2 text-sm font-bold">Display name<input name="display_name" className="field" /></label>
         <label className="grid gap-2 text-sm font-bold">Email<input name="email" type="email" className="field" required /></label>
-        <label className="grid gap-2 text-sm font-bold">Temporary password<input name="password" type="password" minLength={8} className="field" required /></label>
+        <label className="grid gap-2 text-sm font-bold">Temporary password<input name="password" type="password" minLength={12} className="field" required /></label>
         <button className="button-primary">Create admin</button>
       </form>
       <section className="card table-wrap">

@@ -14,6 +14,7 @@ import { sendContactMessage } from "@/app/actions/public";
 import { SectionHeading } from "@/components/section-heading";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SubmitButton } from "@/components/submit-button";
 import {
   getPortfolio,
   getResumeItems,
@@ -307,6 +308,8 @@ export default async function PortfolioHome({
                     ? "Message received. I will get back to you soon."
                     : query.contact === "demo"
                       ? "Demo mode is active. Connect Supabase to store contact messages."
+                      : query.contact === "rate"
+                        ? "Too many messages were submitted. Please wait a few minutes and try again."
                       : "Please check the form and try again."}
                 </p>
               ) : null}
@@ -318,7 +321,12 @@ export default async function PortfolioHome({
               </div>
               <label className="grid gap-2 text-sm font-bold">Subject<input name="subject" className="field" /></label>
               <label className="grid gap-2 text-sm font-bold">Message<textarea name="message" rows={6} className="field resize-y" required /></label>
-              <button className="button-primary justify-self-start">Send enquiry <ArrowRight size={16} /></button>
+              <SubmitButton
+                className="button-primary justify-self-start disabled:cursor-wait disabled:opacity-60"
+                pendingLabel="Sending enquiry..."
+              >
+                Send enquiry <ArrowRight size={16} />
+              </SubmitButton>
             </form>
           </div>
         </section>
