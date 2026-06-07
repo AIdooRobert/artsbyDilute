@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
 const loginSchema = z.object({
@@ -25,6 +26,14 @@ export async function login(
     password: formData.get("password"),
   });
   if (!parsed.success) redirect(loginPath(role, "Enter valid credentials."));
+  const loginAllowed = await checkRateLimit(
+    `login:${role}`,
+    { limit: 8, windowSeconds: 15 * 60 },
+    parsed.data.identifier,
+  );
+  if (!loginAllowed) {
+    redirect(loginPath(role, "Too many sign-in attempts. Please try again later."));
+  }
 
   const admin = createAdminClient();
   let email = parsed.data.identifier.toLowerCase();
@@ -102,9 +111,28 @@ const signupSchema = z
     path: ["confirmPassword"],
   });
 
-export async function registerPhotographer(formData: FormData) {
+export type PhotographerSignupState = {
+  error?: string;
+  values: {
+    photographerName?: string;
+    businessName?: string;
+    email?: string;
+    username?: string;
+  };
+};
+
+export async function registerPhotographer(
+  _previousState: PhotographerSignupState,
+  formData: FormData,
+): Promise<PhotographerSignupState> {
+  const values = {
+    photographerName: String(formData.get("photographer_name") ?? "").trim(),
+    businessName: String(formData.get("business_name") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    username: String(formData.get("username") ?? "").trim().toLowerCase(),
+  };
   if (!hasSupabaseEnv()) {
-    redirect("/photographer/signup?error=Connect+Supabase+before+registering.");
+    return { error: "Connect Supabase before registering.", values };
   }
 
   const parsed = signupSchema.safeParse({
@@ -118,10 +146,25 @@ export async function registerPhotographer(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/photographer/signup?error=Please+check+the+form.");
+    return {
+      error: parsed.error.issues[0]?.message ?? "Please check the form.",
+      values,
+    };
   }
 
   const input = parsed.data;
+  const signupAllowed = await checkRateLimit(
+    "photographer-signup",
+    { limit: 5, windowSeconds: 60 * 60 },
+    input.email,
+  );
+  if (!signupAllowed) {
+    return {
+      error: "Too many signup attempts. Please try again later.",
+      values,
+    };
+  }
+
   const admin = createAdminClient();
   const planReference = input.planRef.toLowerCase();
   const planLookup = z.string().uuid().safeParse(planReference).success
@@ -137,11 +180,9 @@ export async function registerPhotographer(formData: FormData) {
   ]);
 
   if (existingUsername) {
-    redirect(
-      `/photographer/signup?plan=${plan?.slug ?? planReference}&error=Username+already+exists.`,
-    );
+    return { error: "Username already exists.", values };
   }
-  if (!plan) redirect("/pricing?error=plan");
+  if (!plan) return { error: "The selected plan is unavailable.", values };
 
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email: input.email.toLowerCase(),
@@ -154,9 +195,10 @@ export async function registerPhotographer(formData: FormData) {
   });
 
   if (authError || !authData.user) {
-    redirect(
-      `/photographer/signup?plan=${plan.slug}&error=${encodeURIComponent(authError?.message ?? "Unable to create account.")}`,
-    );
+    return {
+      error: authError?.message ?? "Unable to create account.",
+      values,
+    };
   }
 
   await admin
@@ -180,9 +222,10 @@ export async function registerPhotographer(formData: FormData) {
 
   if (profileError || !photographer) {
     await admin.auth.admin.deleteUser(authData.user.id);
-    redirect(
-      `/photographer/signup?plan=${plan.slug}&error=${encodeURIComponent(profileError?.message ?? "Unable to create profile.")}`,
-    );
+    return {
+      error: profileError?.message ?? "Unable to create profile.",
+      values,
+    };
   }
 
   const reference = `SIGNUP-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
@@ -201,9 +244,7 @@ export async function registerPhotographer(formData: FormData) {
 
   if (subscriptionError || !subscription) {
     await admin.auth.admin.deleteUser(authData.user.id);
-    redirect(
-      `/photographer/signup?plan=${plan.slug}&error=Unable+to+start+subscription.`,
-    );
+    return { error: "Unable to start subscription.", values };
   }
 
   const supabase = await createClient();
@@ -221,6 +262,12 @@ export async function requestPasswordReset(
 ) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!email || !hasSupabaseEnv()) redirect(`/${role}/forgot-password?sent=1`);
+  const resetAllowed = await checkRateLimit(
+    `password-reset:${role}`,
+    { limit: 3, windowSeconds: 60 * 60 },
+    email,
+  );
+  if (!resetAllowed) redirect(`/${role}/forgot-password?sent=1`);
   const supabase = await createClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const updatePath = `/auth/update-password?role=${role}`;
@@ -245,6 +292,49 @@ export async function updatePassword(formData: FormData) {
       ? `${updatePath}&error=${encodeURIComponent(error.message)}`
       : `/${role}/login?reset=1`,
   );
+}
+
+export async function changeAdminPassword(formData: FormData) {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm_password") ?? "");
+  if (password.length < 12 || password !== confirm) {
+    redirect(
+      "/admin/security?error=Passwords+must+match+and+contain+at+least+12+characters.",
+    );
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (profile?.role !== "admin") redirect("/");
+
+  const { error } = await admin.auth.admin.updateUserById(user.id, {
+    password,
+    app_metadata: {
+      ...user.app_metadata,
+      must_change_password: false,
+    },
+  });
+  if (error) {
+    redirect(`/admin/security?error=${encodeURIComponent(error.message)}`);
+  }
+
+  await admin.from("admin_activity_logs").insert({
+    admin_id: user.id,
+    action: "change_admin_password",
+    details: {},
+  });
+  await supabase.auth.signOut();
+  redirect("/admin/login?reset=1");
 }
 
 export async function logout() {

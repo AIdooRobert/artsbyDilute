@@ -21,11 +21,19 @@ export async function getPhotographerDashboard(userId: string) {
   if (!photographer) return null;
 
   const supabase = await createClient();
-  const { data: clients } = await supabase
-    .from("photography_clients")
-    .select("*, client_photos(id, file_size)")
-    .eq("photographer_id", photographer.id)
-    .order("created_at", { ascending: false });
+  const [{ data: clients }, { data: subscriptions }] = await Promise.all([
+    supabase
+      .from("photography_clients")
+      .select("*, client_photos(id, file_size)")
+      .eq("photographer_id", photographer.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("subscriptions")
+      .select("id, amount, status, payment_method, transaction_id, renewal_date, created_at, pricing_plans(name, currency)")
+      .eq("photographer_id", photographer.id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ]);
 
   const normalizedClients = (clients ?? []).map((client) => ({
     ...client,
@@ -40,10 +48,17 @@ export async function getPhotographerDashboard(userId: string) {
     (total, client) => total + client.storage_bytes,
     0,
   );
+  const normalizedSubscriptions = (subscriptions ?? []).map((subscription) => ({
+    ...subscription,
+    pricing_plans: Array.isArray(subscription.pricing_plans)
+      ? subscription.pricing_plans[0] ?? null
+      : subscription.pricing_plans,
+  }));
 
   return {
     photographer,
     clients: normalizedClients,
+    subscriptions: normalizedSubscriptions,
     usage: {
       galleries: normalizedClients.length,
       storageBytes,

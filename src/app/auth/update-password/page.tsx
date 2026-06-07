@@ -1,6 +1,8 @@
 import { KeyRound } from "lucide-react";
 import { updatePassword } from "@/app/actions/auth";
 import { AuthShell } from "@/components/auth-shell";
+import { PasswordField } from "@/components/password-field";
+import { SubmitButton } from "@/components/submit-button";
 
 export default async function UpdatePassword({
   searchParams,
@@ -18,17 +20,25 @@ export default async function UpdatePassword({
       ) : null}
       <form action={updatePassword} className="grid gap-5">
         <input type="hidden" name="role" value={role} />
-        <label className="grid gap-2 text-sm font-bold">
-          New password
-          <input name="password" type="password" className="field" minLength={8} required />
-        </label>
-        <label className="grid gap-2 text-sm font-bold">
-          Confirm password
-          <input name="confirm_password" type="password" className="field" minLength={8} required />
-        </label>
-        <button className="button-primary w-full">
+        <PasswordField
+          name="password"
+          label="New password"
+          autoComplete="new-password"
+          minLength={8}
+          showStrength
+        />
+        <PasswordField
+          name="confirm_password"
+          label="Confirm password"
+          autoComplete="new-password"
+          minLength={8}
+        />
+        <SubmitButton
+          className="button-primary w-full disabled:cursor-wait disabled:opacity-60"
+          pendingLabel="Updating password..."
+        >
           <KeyRound size={17} /> Update password
-        </button>
+        </SubmitButton>
       </form>
     </AuthShell>
   );

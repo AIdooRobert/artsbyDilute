@@ -2,9 +2,11 @@ import { CreditCard, LockKeyhole, ShieldCheck } from "lucide-react";
 import { beginPayment } from "@/app/actions/payment";
 import { AuthShell } from "@/components/auth-shell";
 import { StatusMessage } from "@/components/status-message";
+import { SubmitButton } from "@/components/submit-button";
 import { formatCurrency } from "@/lib/data";
 import { getPhotographerByUserId } from "@/lib/photographer";
 import { getPaystackMode } from "@/lib/paystack";
+import { hasReusablePaymentAuthorization } from "@/lib/payments";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 
@@ -43,11 +45,20 @@ export default async function CheckoutPage({
     planId = pending?.pricing_plan_id ?? planId;
   }
 
-  const { data: plan } = await admin
-    .from("pricing_plans")
-    .select("*")
-    .eq("id", planId)
-    .maybeSingle();
+  const [{ data: plan }, { data: paymentSession }] = await Promise.all([
+    admin.from("pricing_plans").select("*").eq("id", planId).maybeSingle(),
+    subscriptionId
+      ? admin
+          .from("subscriptions")
+          .select(
+            "id, transaction_id, authorization_url, expires_at, initialized_at, last_error",
+          )
+          .eq("id", subscriptionId)
+          .eq("photographer_id", photographer.id)
+          .eq("status", "pending")
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
   const paystackMode = getPaystackMode();
   const testBypassEnabled =
     paystackMode === "unconfigured" &&
@@ -59,9 +70,16 @@ export default async function CheckoutPage({
       ? "Paystack is not configured yet. Please contact the administrator."
       : query.error === "payment-init"
         ? "Paystack could not start the payment. Please try again shortly."
+        : query.error === "payment-processing"
+          ? "A payment session is already being prepared. Wait a moment, then try again."
+          : query.error === "rate-limit"
+            ? "Too many payment attempts. Please wait a few minutes before trying again."
         : query.error
           ? "The payment could not be prepared. Please try again."
           : undefined;
+  const canResume = paymentSession
+    ? hasReusablePaymentAuthorization(paymentSession)
+    : false;
 
   return (
     <AuthShell
@@ -81,6 +99,12 @@ export default async function CheckoutPage({
         <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
           Paystack test mode is active. Use Paystack test payment details; no real
           money will be charged.
+        </div>
+      ) : null}
+      {canResume ? (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-900">
+          Your previous Paystack session is still available. Continue below to
+          resume it without creating another payment.
         </div>
       ) : null}
       <div className="rounded-2xl bg-cream p-5">
@@ -108,12 +132,18 @@ export default async function CheckoutPage({
       <form action={beginPayment}>
         <input type="hidden" name="plan_id" value={plan?.id ?? ""} />
         <input type="hidden" name="subscription_id" value={subscriptionId ?? ""} />
-        <button className="button-primary w-full disabled:cursor-not-allowed disabled:opacity-50" disabled={!paymentAvailable}>
+        <SubmitButton
+          className="button-primary w-full disabled:cursor-wait disabled:opacity-50"
+          disabled={!paymentAvailable}
+          pendingLabel="Opening Paystack..."
+        >
           <CreditCard size={17} />{" "}
-          {paystackMode === "test"
-            ? "Continue with Paystack test"
-            : "Pay securely with Paystack"}
-        </button>
+          {canResume
+            ? "Resume Paystack checkout"
+            : paystackMode === "test"
+              ? "Continue with Paystack test"
+              : "Pay securely with Paystack"}
+        </SubmitButton>
       </form>
     </AuthShell>
   );

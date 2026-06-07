@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { LogIn } from "lucide-react";
 import { login } from "@/app/actions/auth";
+import { PasswordField } from "@/components/password-field";
+import { SubmitButton } from "@/components/submit-button";
 
 export function LoginForm({
   role,
@@ -30,19 +32,17 @@ export function LoginForm({
             required
           />
         </label>
-        <label className="grid gap-2 text-sm font-bold">
-          Password
-          <input
-            name="password"
-            type="password"
-            className="field"
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <button className="button-primary w-full">
+        <PasswordField
+          name="password"
+          label="Password"
+          autoComplete="current-password"
+        />
+        <SubmitButton
+          className="button-primary w-full disabled:cursor-wait disabled:opacity-60"
+          pendingLabel="Signing in..."
+        >
           <LogIn size={17} /> Sign in
-        </button>
+        </SubmitButton>
       </form>
       {role === "photographer" || role === "admin" ? (
         <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-black/8 pt-5 text-sm">

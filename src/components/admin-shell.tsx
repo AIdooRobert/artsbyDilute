@@ -13,6 +13,7 @@ import {
   Mail,
   Menu,
   Settings,
+  ShieldCheck,
   Sparkles,
   Star,
   Users,
@@ -37,6 +38,7 @@ const links = [
   ["/admin/photographers", "Photographers", Camera],
   ["/admin/payments", "Payments", CreditCard],
   ["/admin/users", "Admin users", Users],
+  ["/admin/security", "Security", ShieldCheck],
   ["/admin/activity", "Activity", Activity],
 ] as const;
 

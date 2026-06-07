@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { hasSupabaseEnv } from "@/lib/supabase/env";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const contactSchema = z.object({
@@ -22,6 +23,12 @@ export async function sendContactMessage(formData: FormData) {
 
   if (!result.success) redirect("/?contact=invalid#contact");
   if (!hasSupabaseEnv()) redirect("/?contact=demo#contact");
+  const contactAllowed = await checkRateLimit(
+    "contact",
+    { limit: 5, windowSeconds: 10 * 60 },
+    result.data.email,
+  );
+  if (!contactAllowed) redirect("/?contact=rate#contact");
 
   const supabase = await createClient();
   const { error } = await supabase.from("contact_messages").insert(result.data);

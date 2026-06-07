@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/server";
+import {
+  activateSubscriptionPayment,
+  recordPaymentEvent,
+} from "@/lib/payments";
 
 type PaystackWebhook = {
   event?: string;
@@ -9,6 +12,7 @@ type PaystackWebhook = {
     amount?: number;
     status?: string;
     channel?: string;
+    currency?: string;
   };
 };
 
@@ -29,34 +33,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  const admin = createAdminClient();
-  const { data: subscription } = await admin
-    .from("subscriptions")
-    .select("*")
-    .eq("transaction_id", payload.data.reference)
-    .maybeSingle();
-
-  if (
-    subscription &&
-    subscription.status === "pending" &&
-    payload.data.status === "success" &&
-    payload.data.amount === Math.round(Number(subscription.amount) * 100)
-  ) {
-    await admin
-      .from("subscriptions")
-      .update({
-        status: "active",
-        payment_method: payload.data.channel ?? "paystack",
-        renewal_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      })
-      .eq("id", subscription.id);
-    await admin
-      .from("photographers")
-      .update({
-        is_active: true,
-        pricing_plan_id: subscription.pricing_plan_id,
-      })
-      .eq("id", subscription.photographer_id);
+  if (payload.data.status === "success" && payload.data.amount) {
+    try {
+      await activateSubscriptionPayment({
+        reference: payload.data.reference,
+        amountMinor: payload.data.amount,
+        currency: payload.data.currency ?? "GHS",
+        channel: payload.data.channel,
+        source: "webhook",
+      });
+    } catch (error) {
+      await recordPaymentEvent({
+        reference: payload.data.reference,
+        eventType: "webhook",
+        status: "error",
+        details: {
+          message: error instanceof Error ? error.message.slice(0, 500) : "Unknown error",
+        },
+      });
+      return new NextResponse("Unable to process event", { status: 500 });
+    }
   }
 
   return NextResponse.json({ received: true });

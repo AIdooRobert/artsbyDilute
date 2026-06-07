@@ -54,6 +54,7 @@ the personal portfolio and the photography management product distinct:
    PAYSTACK_SECRET_KEY=
    NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY=
    ALLOW_TEST_PAYMENTS=false
+   CRON_SECRET=
    ```
 
 5. In Supabase Auth settings:
@@ -65,8 +66,12 @@ the personal portfolio and the photography management product distinct:
 6. Create the first administrator:
 
    ```powershell
-   npm run admin:create -- admin@example.com "StrongPassword" "Site Admin"
+   npm run admin:create -- admin@example.com "Site Admin"
    ```
+
+   The command prompts for the temporary password without placing it in shell
+   history or the process list. For non-interactive automation, provide it
+   through the temporary `ADMIN_PASSWORD` environment variable.
 
 7. Start the app:
 
@@ -88,8 +93,33 @@ The checkout callback is generated as:
 https://YOUR_DOMAIN/api/paystack/callback
 ```
 
+The deployment health check is available at:
+
+```text
+https://YOUR_DOMAIN/api/health
+```
+
 For local UI testing without Paystack, set `ALLOW_TEST_PAYMENTS=true` and leave
 `PAYSTACK_SECRET_KEY` empty. Never use that setting in production.
+
+The superadmin Payments page shows whether Paystack is running in `test`,
+`live`, or `unconfigured` mode. Replace test keys with live keys only after the
+Paystack account is approved, and configure this production webhook:
+
+```text
+https://artsby-dilute.vercel.app/api/paystack/webhook
+```
+
+## Security
+
+- Public login, signup, password-reset, contact, and payment actions use
+  database-backed rate limits that work across Vercel instances.
+- Payment activation is atomic and idempotent in Postgres.
+- A protected Vercel Cron job cancels abandoned payment sessions every day and
+  removes expired rate-limit buckets.
+- Superadmins can rotate their password at `/admin/security`.
+- Run `npm run check` before deployment to execute lint, TypeScript, tests,
+  dependency auditing, and the production build.
 
 ## Vercel
 
