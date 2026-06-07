@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { adminSections } from "@/lib/admin-config";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -29,6 +30,55 @@ async function logAdminAction(
     details,
     ip_address: ipAddress,
   });
+}
+
+const adminProfileSchema = z.object({
+  displayName: z.string().trim().min(2).max(120),
+  email: z.string().trim().email().max(160),
+});
+
+export async function updateAdminProfile(formData: FormData) {
+  const { user, supabase } = await getAdmin();
+  const parsed = adminProfileSchema.safeParse({
+    displayName: formData.get("display_name"),
+    email: formData.get("email"),
+  });
+  if (!parsed.success) {
+    redirect(
+      `/admin/profile?error=${encodeURIComponent(
+        parsed.error.issues[0]?.message ?? "Enter valid profile details.",
+      )}`,
+    );
+  }
+
+  const displayName = parsed.data.displayName;
+  const email = parsed.data.email.toLowerCase();
+  const emailChanged = email !== user.email?.toLowerCase();
+  const { error: authError } = await supabase.auth.admin.updateUserById(user.id, {
+    ...(emailChanged ? { email, email_confirm: true } : {}),
+    user_metadata: {
+      ...user.user_metadata,
+      display_name: displayName,
+    },
+  });
+  if (authError) {
+    redirect(`/admin/profile?error=${encodeURIComponent(authError.message)}`);
+  }
+
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({ display_name: displayName })
+    .eq("id", user.id);
+  if (profileError) {
+    redirect(`/admin/profile?error=${encodeURIComponent(profileError.message)}`);
+  }
+
+  await logAdminAction(user.id, "update_admin_profile", {
+    email_changed: emailChanged,
+  });
+  revalidatePath("/admin");
+  revalidatePath("/admin/profile");
+  redirect("/admin/profile?success=Profile+updated.");
 }
 
 export async function saveAdminEntity(sectionKey: string, formData: FormData) {

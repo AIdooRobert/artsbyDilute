@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  UserRound,
   Users,
   Wrench,
   X,
@@ -38,6 +39,7 @@ const links = [
   ["/admin/photographers", "Photographers", Camera],
   ["/admin/payments", "Payments", CreditCard],
   ["/admin/users", "Admin users", Users],
+  ["/admin/profile", "My profile", UserRound],
   ["/admin/security", "Security", ShieldCheck],
   ["/admin/activity", "Activity", Activity],
 ] as const;
