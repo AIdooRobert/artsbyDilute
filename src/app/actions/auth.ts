@@ -214,8 +214,9 @@ export async function requestPasswordReset(
   if (!email || !hasSupabaseEnv()) redirect(`/${role}/forgot-password?sent=1`);
   const supabase = await createClient();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const updatePath = `/auth/update-password?role=${role}`;
   await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/auth/callback?next=/auth/update-password`,
+    redirectTo: `${siteUrl}/auth/callback?next=${encodeURIComponent(updatePath)}`,
   });
   redirect(`/${role}/forgot-password?sent=1`);
 }
@@ -223,12 +224,18 @@ export async function requestPasswordReset(
 export async function updatePassword(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const confirm = String(formData.get("confirm_password") ?? "");
+  const role = formData.get("role") === "admin" ? "admin" : "photographer";
+  const updatePath = `/auth/update-password?role=${role}`;
   if (password.length < 8 || password !== confirm) {
-    redirect("/auth/update-password?error=Passwords+must+match+and+contain+8+characters.");
+    redirect(`${updatePath}&error=Passwords+must+match+and+contain+8+characters.`);
   }
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
-  redirect(error ? `/auth/update-password?error=${encodeURIComponent(error.message)}` : "/photographer/login?reset=1");
+  redirect(
+    error
+      ? `${updatePath}&error=${encodeURIComponent(error.message)}`
+      : `/${role}/login?reset=1`,
+  );
 }
 
 export async function logout() {

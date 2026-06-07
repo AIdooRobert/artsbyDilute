@@ -44,14 +44,16 @@ export function LoginForm({
           <LogIn size={17} /> Sign in
         </button>
       </form>
-      {role === "photographer" ? (
+      {role === "photographer" || role === "admin" ? (
         <div className="mt-6 flex flex-wrap justify-between gap-3 border-t border-black/8 pt-5 text-sm">
-          <Link href="/photographer/forgot-password" className="font-bold text-copper">
+          <Link href={`/${role}/forgot-password`} className="font-bold text-copper">
             Forgot password?
           </Link>
-          <Link href="/pricing" className="font-bold text-black/60">
-            Create an account
-          </Link>
+          {role === "photographer" ? (
+            <Link href="/pricing" className="font-bold text-black/60">
+              Create an account
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </>

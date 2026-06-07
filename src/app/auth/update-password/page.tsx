@@ -5,9 +5,10 @@ import { AuthShell } from "@/components/auth-shell";
 export default async function UpdatePassword({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; role?: string }>;
 }) {
   const query = await searchParams;
+  const role = query.role === "admin" ? "admin" : "photographer";
   return (
     <AuthShell title="Choose a new password" copy="Use at least eight characters.">
       {query.error ? (
@@ -16,6 +17,7 @@ export default async function UpdatePassword({
         </p>
       ) : null}
       <form action={updatePassword} className="grid gap-5">
+        <input type="hidden" name="role" value={role} />
         <label className="grid gap-2 text-sm font-bold">
           New password
           <input name="password" type="password" className="field" minLength={8} required />
