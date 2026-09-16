@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
@@ -182,20 +182,61 @@ export async function uploadClientPhotos(formData: FormData) {
 
 export async function deletePhoto(formData: FormData) {
   const { photographer } = await requirePhotographer();
-  const photoId = String(formData.get("photo_id") ?? "");
-  const admin = createAdminClient();
-  const { data: photo } = await admin
-    .from("client_photos")
-    .select("storage_path, photography_clients!inner(photographer_id)")
-    .eq("id", photoId)
-    .eq("photography_clients.photographer_id", photographer.id)
-    .maybeSingle();
-  if (!photo) redirect("/photographer/dashboard?error=Photo+not+found.");
+  const parsed = z.object({ photoId: z.uuid(), clientId: z.uuid() }).safeParse({
+    photoId: formData.get("photo_id"),
+    clientId: formData.get("client_id"),
+  });
+  if (!parsed.success) redirect("/photographer/dashboard?error=Invalid+photo+details.");
 
-  await admin.storage.from("client-photos").remove([photo.storage_path]);
-  await admin.from("client_photos").delete().eq("id", photoId);
+  const { photoId, clientId } = parsed.data;
+  const galleryPath = `/photographer/clients/${clientId}`;
+  const admin = createAdminClient();
+  let errorMessage: string | null = null;
+  try {
+    const { data: client, error: clientError } = await admin
+      .from("photography_clients")
+      .select("id")
+      .eq("id", clientId)
+      .eq("photographer_id", photographer.id)
+      .maybeSingle();
+    if (clientError) throw clientError;
+    if (!client) redirect("/photographer/dashboard?error=Client+gallery+not+found.");
+
+    const { data: photo, error: photoError } = await admin
+      .from("client_photos")
+      .select("storage_path")
+      .eq("id", photoId)
+      .eq("client_id", clientId)
+      .maybeSingle();
+    if (photoError) throw photoError;
+
+    if (photo) {
+      const { error: storageError } = await admin.storage
+        .from("client-photos")
+        .remove([photo.storage_path]);
+      if (storageError) throw storageError;
+
+      const { error: deleteError } = await admin
+        .from("client_photos")
+        .delete()
+        .eq("id", photoId)
+        .eq("client_id", clientId);
+      if (deleteError) throw deleteError;
+    } else {
+      errorMessage = "Photo not found. It may already have been deleted.";
+    }
+  } catch (error) {
+    unstable_rethrow(error);
+    console.error("Unable to delete client photo", error);
+    errorMessage = "Unable to delete the photo. Please try again.";
+  }
+
+  revalidatePath(galleryPath);
   revalidatePath("/photographer/dashboard");
-  redirect("/photographer/dashboard?success=Photo+deleted.");
+  revalidatePath("/client/dashboard");
+  redirect(errorMessage
+    ? `${galleryPath}?error=${encodeURIComponent(errorMessage)}`
+    : `${galleryPath}?success=Photo+deleted.`);
 }
 
 export async function updatePhotographerProfile(formData: FormData) {

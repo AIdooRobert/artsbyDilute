@@ -103,7 +103,9 @@ export default async function ManageClientGallery({
                   <p className="min-w-0 truncate text-xs font-bold">{photo.display_name}</p>
                   <form action={deletePhoto}>
                     <input type="hidden" name="photo_id" value={photo.id} />
+                    <input type="hidden" name="client_id" value={client.id} />
                     <button
+                      type="submit"
                       className="grid size-9 place-items-center rounded-full bg-red-50 text-red-700"
                       aria-label="Delete photo"
                     >
