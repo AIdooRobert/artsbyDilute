@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -208,10 +209,15 @@ export default async function PhotographerDashboard({
                         />
                         <button className="button-secondary shrink-0">Reset password</button>
                       </form>
-                      <form action={deleteClient}>
-                        <input type="hidden" name="client_id" value={client.id} />
-                        <button className="button-danger w-full">Delete</button>
-                      </form>
+                      <ConfirmDeleteButton
+                        action={deleteClient}
+                        fields={{ client_id: client.id }}
+                        message={`Delete the gallery for "${client.client_name}"? This permanently deletes all its photos and the client's login access. This cannot be undone.`}
+                        label={`Delete gallery for ${client.client_name}`}
+                        className="button-danger disabled:opacity-50"
+                      >
+                        Delete client
+                      </ConfirmDeleteButton>
                     </div>
                   </div>
                 ))}

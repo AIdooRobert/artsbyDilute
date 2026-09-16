@@ -1,3 +1,4 @@
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Upload } from "lucide-react";
@@ -101,17 +102,15 @@ export default async function ManageClientGallery({
                 </div>
                 <div className="flex items-center justify-between gap-3 p-4">
                   <p className="min-w-0 truncate text-xs font-bold">{photo.display_name}</p>
-                  <form action={deletePhoto}>
-                    <input type="hidden" name="photo_id" value={photo.id} />
-                    <input type="hidden" name="client_id" value={client.id} />
-                    <button
-                      type="submit"
-                      className="grid size-9 place-items-center rounded-full bg-red-50 text-red-700"
-                      aria-label="Delete photo"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </form>
+                  <ConfirmDeleteButton
+                    action={deletePhoto}
+                    fields={{ photo_id: photo.id, client_id: client.id }}
+                    message={`Delete "${photo.display_name ?? "this photo"}" from this gallery? This permanently deletes the photo and cannot be undone.`}
+                    label={`Delete ${photo.display_name ?? "photo"}`}
+                    className="grid size-9 place-items-center rounded-full bg-red-50 text-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 size={16} />
+                  </ConfirmDeleteButton>
                 </div>
               </article>
             ))}
