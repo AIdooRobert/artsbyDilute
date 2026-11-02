@@ -1,9 +1,10 @@
+import { ClientPhotoUploadForm } from "@/components/client-photo-upload-form";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
-import { deletePhoto, uploadClientPhotos } from "@/app/actions/photographer";
+import { deletePhoto } from "@/app/actions/photographer";
 import { PortalShell } from "@/components/portal-shell";
 import { StatusMessage } from "@/components/status-message";
 import { getPhotographerByUserId } from "@/lib/photographer";
@@ -64,26 +65,7 @@ export default async function ManageClientGallery({
           <StatusMessage error={query.error} success={query.success} />
         </div>
 
-        <form
-          action={uploadClientPhotos}
-          className="card grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-end"
-        >
-          <input type="hidden" name="client_id" value={client.id} />
-          <label className="grid gap-2 text-sm font-bold">
-            Add photos
-            <input
-              name="photos"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              multiple
-              className="field file:mr-3 file:rounded-full file:border-0 file:bg-cream file:px-3 file:py-1 file:text-xs file:font-bold"
-              required
-            />
-          </label>
-          <button className="button-primary">
-            <Upload size={16} /> Upload selection
-          </button>
-        </form>
+        <ClientPhotoUploadForm clientId={client.id} />
 
         {photoList.length ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

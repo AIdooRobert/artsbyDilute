@@ -117,15 +117,63 @@ export async function deleteClient(formData: FormData) {
   redirect("/photographer/dashboard?success=Client+gallery+deleted.");
 }
 
-const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+const allowedImageTypeSet = new Set<string>(allowedImageTypes);
+const maxPhotoSize = 20 * 1024 * 1024;
+const maxPhotosPerUpload = 50;
 
-export async function uploadClientPhotos(formData: FormData) {
+const photoUploadSchema = z.object({
+  name: z.string().trim().min(1).max(255),
+  type: z.enum(allowedImageTypes),
+  size: z.number().int().positive().max(maxPhotoSize),
+});
+
+const preparedPhotoUploadSchema = photoUploadSchema.extend({
+  path: z.string().min(1).max(1024),
+});
+
+async function getPhotographerStorageBytes(
+  admin: ReturnType<typeof createAdminClient>,
+  photographerId: string,
+) {
+  const { data: clients, error: clientError } = await admin
+    .from("photography_clients")
+    .select("id")
+    .eq("photographer_id", photographerId);
+  if (clientError) throw clientError;
+
+  const clientIds = (clients ?? []).map((client) => client.id);
+  if (!clientIds.length) return 0;
+
+  const { data: photos, error: photoError } = await admin
+    .from("client_photos")
+    .select("file_size")
+    .in("client_id", clientIds);
+  if (photoError) throw photoError;
+
+  return (photos ?? []).reduce(
+    (total, photo) => total + Number(photo.file_size || 0),
+    0,
+  );
+}
+
+export async function prepareClientPhotoUploads(
+  clientId: string,
+  fileMetadata: Array<{ name: string; type: string; size: number }>,
+) {
   const { photographer } = await requirePhotographer();
-  const clientId = String(formData.get("client_id") ?? "");
-  const files = formData
-    .getAll("photos")
-    .filter((item): item is File => item instanceof File && item.size > 0);
-  if (!files.length) redirect("/photographer/dashboard?error=Choose+at+least+one+photo.");
+  const parsedFiles = z
+    .array(photoUploadSchema)
+    .min(1)
+    .max(maxPhotosPerUpload)
+    .safeParse(fileMetadata);
+
+  if (!parsedFiles.success) {
+    return {
+      error: `Choose 1-${maxPhotosPerUpload} JPEG, PNG, WebP, or GIF images under 20MB each.`,
+      uploads: [],
+    };
+  }
 
   const admin = createAdminClient();
   const { data: client } = await admin
@@ -134,50 +182,155 @@ export async function uploadClientPhotos(formData: FormData) {
     .eq("id", clientId)
     .eq("photographer_id", photographer.id)
     .maybeSingle();
-  if (!client) redirect("/photographer/dashboard?error=Client+not+found.");
 
-  const { data: existingPhotos } = await admin
-    .from("client_photos")
-    .select("file_size")
-    .in(
-      "client_id",
-      (
-        await admin
-          .from("photography_clients")
-          .select("id")
-          .eq("photographer_id", photographer.id)
-      ).data?.map((row) => row.id) ?? [],
+  if (!client) return { error: "Client gallery not found.", uploads: [] };
+
+  try {
+    const currentBytes = await getPhotographerStorageBytes(admin, photographer.id);
+    const incomingBytes = parsedFiles.data.reduce((total, file) => total + file.size, 0);
+    const limitBytes =
+      (photographer.pricing_plans?.max_storage_gb ?? 0) * 1024 * 1024 * 1024;
+
+    if (currentBytes + incomingBytes > limitBytes) {
+      return { error: "This upload would exceed your plan storage limit.", uploads: [] };
+    }
+
+    const uploads = await Promise.all(
+      parsedFiles.data.map(async (file) => {
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const path = `${photographer.id}/${clientId}/${crypto.randomUUID()}-${safeName}`;
+        const { data, error } = await admin.storage
+          .from("client-photos")
+          .createSignedUploadUrl(path);
+
+        if (error || !data) throw error ?? new Error("Unable to prepare photo upload.");
+
+        return {
+          ...file,
+          path,
+          token: data.token,
+        };
+      }),
     );
 
-  const currentBytes = (existingPhotos ?? []).reduce(
-    (total, photo) => total + Number(photo.file_size || 0),
-    0,
-  );
-  const incomingBytes = files.reduce((total, file) => total + file.size, 0);
-  const limitBytes = (photographer.pricing_plans?.max_storage_gb ?? 0) * 1024 * 1024 * 1024;
-  if (currentBytes + incomingBytes > limitBytes) {
-    redirect("/photographer/dashboard?error=Storage+limit+would+be+exceeded.");
+    return { error: null, uploads };
+  } catch (error) {
+    console.error("Unable to prepare client photo uploads", error);
+    return { error: "Unable to prepare the upload. Please try again.", uploads: [] };
+  }
+}
+
+export async function completeClientPhotoUploads(
+  clientId: string,
+  uploadedPhotos: Array<{ name: string; type: string; size: number; path: string }>,
+) {
+  const { photographer } = await requirePhotographer();
+  const parsedPhotos = z
+    .array(preparedPhotoUploadSchema)
+    .min(1)
+    .max(maxPhotosPerUpload)
+    .safeParse(uploadedPhotos);
+
+  if (!parsedPhotos.success) {
+    return { error: "The uploaded photo details were invalid.", uploaded: 0 };
   }
 
-  for (const file of files) {
-    if (!allowedImageTypes.has(file.type) || file.size > 20 * 1024 * 1024) continue;
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-    const path = `${photographer.id}/${clientId}/${crypto.randomUUID()}-${safeName}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await admin.storage
-      .from("client-photos")
-      .upload(path, buffer, { contentType: file.type, upsert: false });
-    if (uploadError) continue;
-    await admin.from("client_photos").insert({
-      client_id: clientId,
-      storage_path: path,
-      display_name: file.name,
-      file_size: file.size,
-    });
+  const admin = createAdminClient();
+  const { data: client } = await admin
+    .from("photography_clients")
+    .select("id")
+    .eq("id", clientId)
+    .eq("photographer_id", photographer.id)
+    .maybeSingle();
+
+  if (!client) return { error: "Client gallery not found.", uploaded: 0 };
+
+  const pathPrefix = `${photographer.id}/${clientId}/`;
+  if (parsedPhotos.data.some((photo) => !photo.path.startsWith(pathPrefix))) {
+    return { error: "One or more upload paths were invalid.", uploaded: 0 };
   }
 
-  revalidatePath("/photographer/dashboard");
-  redirect("/photographer/dashboard?success=Photos+uploaded.");
+  const paths = parsedPhotos.data.map((photo) => photo.path);
+  let newPhotos: typeof parsedPhotos.data = [];
+  let photosRegistered = false;
+
+  try {
+    const { data: existingPhotos, error: existingError } = await admin
+      .from("client_photos")
+      .select("storage_path")
+      .in("storage_path", paths);
+    if (existingError) throw existingError;
+
+    const existingPaths = new Set(
+      (existingPhotos ?? []).map((photo) => photo.storage_path),
+    );
+    newPhotos = parsedPhotos.data.filter(
+      (photo) => !existingPaths.has(photo.path),
+    );
+    if (!newPhotos.length) {
+      return { error: null, uploaded: parsedPhotos.data.length };
+    }
+
+    const verifiedPhotos = await Promise.all(
+      newPhotos.map(async (photo) => {
+        const { data, error } = await admin.storage
+          .from("client-photos")
+          .info(photo.path);
+        if (
+          error ||
+          !data ||
+          data.size !== photo.size ||
+          data.contentType !== photo.type ||
+          !allowedImageTypeSet.has(data.contentType)
+        ) {
+          return null;
+        }
+        return photo;
+      }),
+    );
+
+    if (verifiedPhotos.some((photo) => !photo)) {
+      await admin.storage.from("client-photos").remove(newPhotos.map((photo) => photo.path));
+      return {
+        error: "One or more photos could not be verified. Please select them and try again.",
+        uploaded: 0,
+      };
+    }
+
+    const currentBytes = await getPhotographerStorageBytes(admin, photographer.id);
+    const incomingBytes = newPhotos.reduce((total, photo) => total + photo.size, 0);
+    const limitBytes =
+      (photographer.pricing_plans?.max_storage_gb ?? 0) * 1024 * 1024 * 1024;
+
+    if (currentBytes + incomingBytes > limitBytes) {
+      await admin.storage.from("client-photos").remove(newPhotos.map((photo) => photo.path));
+      return { error: "This upload would exceed your plan storage limit.", uploaded: 0 };
+    }
+
+    const { error: insertError } = await admin.from("client_photos").insert(
+      newPhotos.map((photo) => ({
+        client_id: clientId,
+        storage_path: photo.path,
+        display_name: photo.name,
+        file_size: photo.size,
+      })),
+    );
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    photosRegistered = true;
+    revalidatePath("/photographer/dashboard");
+    revalidatePath(`/photographer/clients/${clientId}`);
+    return { error: null, uploaded: parsedPhotos.data.length };
+  } catch (error) {
+    if (newPhotos.length && !photosRegistered) {
+      await admin.storage.from("client-photos").remove(newPhotos.map((photo) => photo.path));
+    }
+    console.error("Unable to complete client photo uploads", error);
+    return { error: "Unable to save the uploaded photos. Please try again.", uploaded: 0 };
+  }
 }
 
 export async function deletePhoto(formData: FormData) {
@@ -257,7 +410,7 @@ export async function updatePhotographerProfile(formData: FormData) {
   if (logo instanceof File && logo.size > 0) {
     const canBrand = (photographer.pricing_plans?.sort_order ?? 0) >= 2;
     if (!canBrand) redirect("/photographer/profile?error=Upgrade+to+use+custom+branding.");
-    if (!allowedImageTypes.has(logo.type) || logo.size > 5 * 1024 * 1024) {
+    if (!allowedImageTypeSet.has(logo.type) || logo.size > 5 * 1024 * 1024) {
       redirect("/photographer/profile?error=Logo+must+be+an+image+under+5MB.");
     }
     const path = `logos/${photographer.id}/${crypto.randomUUID()}-${logo.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
