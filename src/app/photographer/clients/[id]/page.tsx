@@ -1,3 +1,4 @@
+import { ClientAccessShare } from "@/components/client-access-share";
 import { ClientPhotoUploadForm } from "@/components/client-photo-upload-form";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import Image from "next/image";
@@ -65,7 +66,12 @@ export default async function ManageClientGallery({
           <StatusMessage error={query.error} success={query.success} />
         </div>
 
-        <ClientPhotoUploadForm clientId={client.id} />
+        <div className="grid gap-5 lg:grid-cols-[.85fr_1.15fr]">
+          <div className="card p-5">
+            <ClientAccessShare clientId={client.id} clientName={client.client_name} username={client.username} />
+          </div>
+          <ClientPhotoUploadForm clientId={client.id} />
+        </div>
 
         {photoList.length ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

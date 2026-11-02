@@ -1,3 +1,4 @@
+import { ClientAccessShare } from "@/components/client-access-share";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
 import Link from "next/link";
 import {
@@ -8,7 +9,7 @@ import {
   Plus,
   UserRound,
 } from "lucide-react";
-import { addClient, deleteClient, resetClientPassword } from "@/app/actions/photographer";
+import { addClient, deleteClient } from "@/app/actions/photographer";
 import { PortalShell } from "@/components/portal-shell";
 import { StatusMessage } from "@/components/status-message";
 import { getPhotographerDashboard } from "@/lib/photographer";
@@ -196,19 +197,8 @@ export default async function PhotographerDashboard({
                         Manage gallery
                       </Link>
                     </div>
-                    <div className="mt-4 grid gap-3 rounded-xl bg-black/[0.025] p-3 sm:grid-cols-[1fr_auto]">
-                      <form action={resetClientPassword} className="flex flex-col gap-2 sm:flex-row">
-                        <input type="hidden" name="client_id" value={client.id} />
-                        <input
-                          name="new_password"
-                          type="password"
-                          className="field min-w-0"
-                          placeholder="Set a new password"
-                          minLength={8}
-                          required
-                        />
-                        <button className="button-secondary shrink-0">Reset password</button>
-                      </form>
+                    <div className="mt-4 grid gap-4 rounded-xl bg-black/[0.025] p-4">
+                      <ClientAccessShare clientId={client.id} clientName={client.client_name} username={client.username} />
                       <ConfirmDeleteButton
                         action={deleteClient}
                         fields={{ client_id: client.id }}

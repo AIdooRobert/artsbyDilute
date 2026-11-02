@@ -73,27 +73,42 @@ export async function addClient(formData: FormData) {
   redirect("/photographer/dashboard?success=Client+gallery+created.");
 }
 
-export async function resetClientPassword(formData: FormData) {
+export async function prepareClientAccess(
+  clientId: string,
+  password: string,
+) {
   const { photographer } = await requirePhotographer();
-  const clientId = String(formData.get("client_id") ?? "");
-  const password = String(formData.get("new_password") ?? "");
-  if (password.length < 8) redirect("/photographer/dashboard?error=Password+must+contain+8+characters.");
+  const parsed = z
+    .object({
+      clientId: z.string().uuid(),
+      password: z.string().min(8).max(128),
+    })
+    .safeParse({ clientId, password });
+
+  if (!parsed.success) {
+    return { error: "Password must contain at least 8 characters." };
+  }
 
   const admin = createAdminClient();
   const { data: client } = await admin
     .from("photography_clients")
     .select("auth_user_id")
-    .eq("id", clientId)
+    .eq("id", parsed.data.clientId)
     .eq("photographer_id", photographer.id)
     .maybeSingle();
-  if (!client?.auth_user_id) redirect("/photographer/dashboard?error=Client+not+found.");
+  if (!client?.auth_user_id) return { error: "Client gallery not found." };
 
-  const { error } = await admin.auth.admin.updateUserById(client.auth_user_id, { password });
-  redirect(
-    error
-      ? `/photographer/dashboard?error=${encodeURIComponent(error.message)}`
-      : "/photographer/dashboard?success=Client+password+updated.",
-  );
+  const { error } = await admin.auth.admin.updateUserById(client.auth_user_id, {
+    password: parsed.data.password,
+  });
+  if (error) {
+    console.error("Unable to prepare client access", error);
+    return { error: "Unable to update the client password. Please try again." };
+  }
+
+  revalidatePath("/photographer/dashboard");
+  revalidatePath(`/photographer/clients/${parsed.data.clientId}`);
+  return { error: null };
 }
 
 export async function deleteClient(formData: FormData) {
