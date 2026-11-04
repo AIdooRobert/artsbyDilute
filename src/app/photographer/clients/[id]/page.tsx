@@ -1,3 +1,4 @@
+import { isVideoPath } from "@/lib/gallery-media";
 import { ClientAccessShare } from "@/components/client-access-share";
 import { ClientPhotoUploadForm } from "@/components/client-photo-upload-form";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
@@ -59,7 +60,7 @@ export default async function ManageClientGallery({
         <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="display-title text-4xl">{client.client_name}</h1>
-            <p className="mt-2 text-sm text-black/48">@{client.username} · {photoList.length} photos</p>
+            <p className="mt-2 text-sm text-black/48">@{client.username} · {photoList.length} files</p>
           </div>
         </div>
         <div className="mt-6">
@@ -78,6 +79,7 @@ export default async function ManageClientGallery({
             {photoList.map((photo) => (
               <article key={photo.id} className="card overflow-hidden">
                 <PhotographerPhotoPreview
+                  video={isVideoPath(photo.storage_path)}
                   src={photo.signed_url}
                   name={photo.display_name ?? "Client photo"}
                 />
@@ -86,7 +88,7 @@ export default async function ManageClientGallery({
                   <ConfirmDeleteButton
                     action={deletePhoto}
                     fields={{ photo_id: photo.id, client_id: client.id }}
-                    message={`Delete "${photo.display_name ?? "this photo"}" from this gallery? This permanently deletes the photo and cannot be undone.`}
+                    message={`Delete "${photo.display_name ?? "this photo"}" from this gallery? This permanently deletes the file and cannot be undone.`}
                     label={`Delete ${photo.display_name ?? "photo"}`}
                     className="grid size-9 place-items-center rounded-full bg-red-50 text-red-700 disabled:opacity-50"
                   >
@@ -98,7 +100,7 @@ export default async function ManageClientGallery({
           </div>
         ) : (
           <div className="mt-6 rounded-2xl border border-dashed border-black/15 p-14 text-center text-sm text-black/45">
-            This gallery is empty. Upload the first photographs above.
+            This gallery is empty. Upload photos or videos above.
           </div>
         )}
       </div>

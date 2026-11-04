@@ -22,14 +22,14 @@ export async function GET(
     .maybeSingle();
   if (!photo) return new NextResponse("Not found", { status: 404 });
 
-  const { data, error } = await admin.storage.from("client-photos").download(photo.storage_path);
-  if (error || !data) return new NextResponse("Unable to download photo", { status: 500 });
+  const { data, error } = await admin.storage
+    .from("client-photos")
+    .createSignedUrl(photo.storage_path, 300, { download: photo.display_name || "gallery-file" });
+  if (error || !data) return new NextResponse("Unable to download file", { status: 500 });
 
-  return new NextResponse(data.stream(), {
-    headers: {
-      "Content-Type": data.type || "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(photo.display_name || "photo")}"`,
-      "Cache-Control": "private, no-store",
-    },
-  });
+  // Serve the original from private storage, without buffering video files in a function.
+  const response = NextResponse.redirect(data.signedUrl, 303);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
 }

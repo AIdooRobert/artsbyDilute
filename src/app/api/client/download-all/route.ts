@@ -1,3 +1,4 @@
+import { isVideoPath } from "@/lib/gallery-media";
 import JSZip from "jszip";
 import { NextResponse } from "next/server";
 import { getCurrentUser, getCurrentRole } from "@/lib/supabase/auth";
@@ -20,8 +21,11 @@ export async function GET() {
     .select("*")
     .eq("client_id", client.id);
 
+  const imagePhotos = (photos ?? []).filter((photo) => !isVideoPath(photo.storage_path));
+  if (!imagePhotos.length) return new NextResponse("No photos to download. Download videos individually from the gallery.", { status: 404 });
+
   const zip = new JSZip();
-  for (const photo of photos ?? []) {
+  for (const photo of imagePhotos) {
     const { data } = await admin.storage.from("client-photos").download(photo.storage_path);
     if (data) zip.file(photo.display_name || `${photo.id}.jpg`, await data.arrayBuffer());
   }

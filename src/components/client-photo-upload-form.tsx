@@ -9,9 +9,8 @@ import {
 } from "@/app/actions/photographer";
 import { createClient } from "@/lib/supabase/client";
 
-const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const maxPhotoSize = 20 * 1024 * 1024;
-const maxPhotosPerUpload = 50;
+import { getMediaType, mediaUploadSchema, mediaAccept, mediaRequirements, maxFilesPerUpload } from "@/lib/gallery-media";
+
 const uploadConcurrency = 3;
 
 type UploadStatus =
@@ -28,26 +27,26 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
     event.preventDefault();
     const files = Array.from(inputRef.current?.files ?? []);
 
+    const metadata = files.map((file) => ({ name: file.name, type: getMediaType(file), size: file.size }));
+
     if (!files.length) {
-      setStatus({ type: "error", message: "Choose at least one photo." });
+      setStatus({ type: "error", message: "Choose at least one photo or video." });
       return;
     }
 
-    if (files.length > maxPhotosPerUpload) {
+    if (files.length > maxFilesPerUpload) {
       setStatus({
         type: "error",
-        message: `Upload no more than ${maxPhotosPerUpload} photos at a time.`,
+        message: `Upload no more than ${maxFilesPerUpload} files at a time.`,
       });
       return;
     }
 
-    const invalidFile = files.find(
-      (file) => !allowedImageTypes.has(file.type) || file.size > maxPhotoSize,
-    );
+    const invalidFile = metadata.find((file) => !mediaUploadSchema.safeParse(file).success);
     if (invalidFile) {
       setStatus({
         type: "error",
-        message: `${invalidFile.name} must be a JPEG, PNG, WebP, or GIF under 20MB.`,
+        message: `${invalidFile.name}: ${mediaRequirements}`,
       });
       return;
     }
@@ -58,11 +57,7 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
     try {
       const prepared = await prepareClientPhotoUploads(
         clientId,
-        files.map((file) => ({
-          name: file.name,
-          type: file.type,
-          size: file.size,
-        })),
+        metadata,
       );
 
       if (prepared.error || !prepared.uploads.length) {
@@ -92,7 +87,7 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
           const { error } = await supabase.storage
             .from("client-photos")
             .uploadToSignedUrl(upload.path, upload.token, file, {
-              contentType: file.type,
+              contentType: upload.type,
               upsert: false,
             });
 
@@ -123,7 +118,7 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
       if (!successfulUploads.length) {
         setStatus({
           type: "error",
-          message: "The photos could not be uploaded. Check your connection and try again.",
+          message: "The files could not be uploaded. Check your connection and try again.",
         });
         return;
       }
@@ -139,8 +134,8 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
       setStatus({
         type: failedCount ? "error" : "success",
         message: failedCount
-          ? `${completed.uploaded} photos uploaded. ${failedCount} failed; select those files and try again.`
-          : `${completed.uploaded} photos uploaded successfully.`,
+          ? `${completed.uploaded} files uploaded. ${failedCount} failed; select those files and try again.`
+          : `${completed.uploaded} files uploaded successfully.`,
       });
       if (inputRef.current) inputRef.current.value = "";
       router.refresh();
@@ -161,12 +156,12 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
       className="card grid gap-4 p-5 sm:grid-cols-[1fr_auto] sm:items-end"
     >
       <label className="grid gap-2 text-sm font-bold">
-        Add photos
+        Add photos or videos
         <input
           ref={inputRef}
-          name="photos"
+          name="files"
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept={mediaAccept}
           multiple
           className="field file:mr-3 file:rounded-full file:border-0 file:bg-cream file:px-3 file:py-1 file:text-xs file:font-bold"
           required
@@ -181,6 +176,7 @@ export function ClientPhotoUploadForm({ clientId }: { clientId: string }) {
         <Upload size={16} />
         {isUploading ? "Uploading..." : "Upload selection"}
       </button>
+      <p className="text-xs text-black/50 sm:col-span-2">{mediaRequirements} Videos count toward your plan storage.</p>
       {status.type !== "idle" ? (
         <div
           aria-live="polite"

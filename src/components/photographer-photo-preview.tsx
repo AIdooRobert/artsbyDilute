@@ -1,15 +1,18 @@
 "use client";
 
 import Image from "next/image";
+import { GalleryVideo } from "@/components/gallery-video";
 import { Maximize2, X } from "lucide-react";
 import { useRef } from "react";
 
 export function PhotographerPhotoPreview({
   src,
   name,
+  video = false,
 }: {
   src?: string;
   name: string;
+  video?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -20,6 +23,8 @@ export function PhotographerPhotoPreview({
       </div>
     );
   }
+
+  if (video) return <div className="aspect-square overflow-hidden"><GalleryVideo src={src} name={name} /></div>;
 
   return (
     <>

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
+import { imageTypes, mediaTypes, mediaUploadSchema, completedMediaSchema, maxFilesPerUpload, mediaRequirements, mediaStorageName } from "@/lib/gallery-media";
 import { requireRole } from "@/lib/supabase/auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPhotographerByUserId } from "@/lib/photographer";
@@ -132,20 +133,8 @@ export async function deleteClient(formData: FormData) {
   redirect("/photographer/dashboard?success=Client+gallery+deleted.");
 }
 
-const allowedImageTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
-const allowedImageTypeSet = new Set<string>(allowedImageTypes);
-const maxPhotoSize = 20 * 1024 * 1024;
-const maxPhotosPerUpload = 50;
-
-const photoUploadSchema = z.object({
-  name: z.string().trim().min(1).max(255),
-  type: z.enum(allowedImageTypes),
-  size: z.number().int().positive().max(maxPhotoSize),
-});
-
-const preparedPhotoUploadSchema = photoUploadSchema.extend({
-  path: z.string().min(1).max(1024),
-});
+const allowedImageTypeSet = new Set<string>(imageTypes);
+const allowedMediaTypeSet = new Set<string>(mediaTypes);
 
 async function getPhotographerStorageBytes(
   admin: ReturnType<typeof createAdminClient>,
@@ -178,14 +167,14 @@ export async function prepareClientPhotoUploads(
 ) {
   const { photographer } = await requirePhotographer();
   const parsedFiles = z
-    .array(photoUploadSchema)
+    .array(mediaUploadSchema)
     .min(1)
-    .max(maxPhotosPerUpload)
+    .max(maxFilesPerUpload)
     .safeParse(fileMetadata);
 
   if (!parsedFiles.success) {
     return {
-      error: `Choose 1-${maxPhotosPerUpload} JPEG, PNG, WebP, or GIF images under 20MB each.`,
+      error: `Choose 1-${maxFilesPerUpload} files. ${mediaRequirements}`,
       uploads: [],
     };
   }
@@ -212,7 +201,7 @@ export async function prepareClientPhotoUploads(
 
     const uploads = await Promise.all(
       parsedFiles.data.map(async (file) => {
-        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const safeName = mediaStorageName(file.name, file.type);
         const path = `${photographer.id}/${clientId}/${crypto.randomUUID()}-${safeName}`;
         const { data, error } = await admin.storage
           .from("client-photos")
@@ -241,13 +230,13 @@ export async function completeClientPhotoUploads(
 ) {
   const { photographer } = await requirePhotographer();
   const parsedPhotos = z
-    .array(preparedPhotoUploadSchema)
+    .array(completedMediaSchema)
     .min(1)
-    .max(maxPhotosPerUpload)
+    .max(maxFilesPerUpload)
     .safeParse(uploadedPhotos);
 
   if (!parsedPhotos.success) {
-    return { error: "The uploaded photo details were invalid.", uploaded: 0 };
+    return { error: "The uploaded file details were invalid.", uploaded: 0 };
   }
 
   const admin = createAdminClient();
@@ -296,7 +285,7 @@ export async function completeClientPhotoUploads(
           !data ||
           data.size !== photo.size ||
           data.contentType !== photo.type ||
-          !allowedImageTypeSet.has(data.contentType)
+          !allowedMediaTypeSet.has(data.contentType)
         ) {
           return null;
         }
@@ -307,7 +296,7 @@ export async function completeClientPhotoUploads(
     if (verifiedPhotos.some((photo) => !photo)) {
       await admin.storage.from("client-photos").remove(newPhotos.map((photo) => photo.path));
       return {
-        error: "One or more photos could not be verified. Please select them and try again.",
+        error: "One or more files could not be verified. Please select them and try again.",
         uploaded: 0,
       };
     }
@@ -344,7 +333,7 @@ export async function completeClientPhotoUploads(
       await admin.storage.from("client-photos").remove(newPhotos.map((photo) => photo.path));
     }
     console.error("Unable to complete client photo uploads", error);
-    return { error: "Unable to save the uploaded photos. Please try again.", uploaded: 0 };
+    return { error: "Unable to save the uploaded files. Please try again.", uploaded: 0 };
   }
 }
 

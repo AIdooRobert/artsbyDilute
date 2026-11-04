@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { GalleryVideo } from "@/components/gallery-video";
+import { isVideoPath } from "@/lib/gallery-media";
 import { Download, Maximize2, X } from "lucide-react";
 import { useState } from "react";
 import type { ClientPhoto } from "@/lib/types";
@@ -13,6 +15,9 @@ export function ClientGallery({ photos }: { photos: ClientPhoto[] }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {photos.map((photo) => (
           <article key={photo.id} className="group overflow-hidden rounded-2xl bg-white shadow-sm">
+            {isVideoPath(photo.storage_path) && photo.signed_url ? (
+              <div className="aspect-[4/3] overflow-hidden"><GalleryVideo src={photo.signed_url} name={photo.display_name ?? "Gallery video"} /></div>
+            ) : (
             <button
               type="button"
               className="relative block aspect-[4/3] w-full overflow-hidden bg-black/5"
@@ -31,6 +36,7 @@ export function ClientGallery({ photos }: { photos: ClientPhoto[] }) {
                 <Maximize2 size={16} />
               </span>
             </button>
+            )}
             <div className="flex items-center justify-between gap-3 p-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold">{photo.display_name}</p>

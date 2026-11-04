@@ -76,7 +76,7 @@ export function ClientAccessShare({
       const loginUrl = new URL("/client/login", window.location.origin).toString();
       setShareMessage(
         [
-          `Hello ${clientName}, your private photo gallery is ready.`,
+          `Hello ${clientName}, your private gallery is ready.`,
           "",
           `Login link: ${loginUrl}`,
           `Username: ${username}`,

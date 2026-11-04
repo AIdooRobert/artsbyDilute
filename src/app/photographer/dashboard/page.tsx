@@ -190,7 +190,7 @@ export default async function PhotographerDashboard({
                       <div>
                         <h3 className="font-black">{client.client_name}</h3>
                         <p className="mt-1 text-sm text-black/48">
-                          @{client.username} · {client.photo_count} photos
+                          @{client.username} · {client.photo_count} files
                         </p>
                       </div>
                       <Link href={`/photographer/clients/${client.id}`} className="button-secondary">
@@ -202,7 +202,7 @@ export default async function PhotographerDashboard({
                       <ConfirmDeleteButton
                         action={deleteClient}
                         fields={{ client_id: client.id }}
-                        message={`Delete the gallery for "${client.client_name}"? This permanently deletes all its photos and the client's login access. This cannot be undone.`}
+                        message={`Delete the gallery for "${client.client_name}"? This permanently deletes all its photos and videos and the client's login access. This cannot be undone.`}
                         label={`Delete gallery for ${client.client_name}`}
                         className="button-danger disabled:opacity-50"
                       >

@@ -1,3 +1,4 @@
+import { isVideoPath } from "@/lib/gallery-media";
 import Image from "next/image";
 import { Camera, Download, ImageIcon, LogOut } from "lucide-react";
 import { logout } from "@/app/actions/auth";
@@ -12,6 +13,9 @@ export default async function ClientDashboard() {
   const user = await requireRole("client");
   const gallery = await getClientGallery(user.id);
   if (!gallery) return null;
+
+  const photoCount = gallery.photos.filter((file) => !isVideoPath(file.storage_path)).length;
+  const videoCount = gallery.photos.length - photoCount;
 
   const photographerRelation = gallery.client.photographers as
     | {
@@ -78,13 +82,12 @@ export default async function ClientDashboard() {
               {gallery.client.client_name}&apos;s gallery
             </h1>
             <p className="mt-3 flex items-center gap-2 text-sm text-black/48">
-              <ImageIcon size={16} /> {gallery.photos.length}{" "}
-              {gallery.photos.length === 1 ? "photograph" : "photographs"}
+              <ImageIcon size={16} /> {photoCount} photos &middot; {videoCount} videos
             </p>
           </div>
-          {gallery.photos.length ? (
+          {photoCount ? (
             <a href="/api/client/download-all" className="button-primary">
-              <Download size={16} /> Download all as ZIP
+              <Download size={16} /> Download photos as ZIP
             </a>
           ) : null}
         </section>
@@ -97,7 +100,7 @@ export default async function ClientDashboard() {
               <ImageIcon className="mx-auto text-copper" size={32} />
               <h2 className="display-title mt-4 text-2xl">Your gallery is being prepared.</h2>
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-black/48">
-                There are no photographs here yet. Your photographer will add them as
+                There are no photos or videos here yet. Your photographer will add them as
                 soon as the final set is ready.
               </p>
             </div>
