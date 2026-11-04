@@ -1,7 +1,7 @@
 import { ClientAccessShare } from "@/components/client-access-share";
 import { ClientPhotoUploadForm } from "@/components/client-photo-upload-form";
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
-import Image from "next/image";
+import { PhotographerPhotoPreview } from "@/components/photographer-photo-preview";
 import Link from "next/link";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -77,17 +77,10 @@ export default async function ManageClientGallery({
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {photoList.map((photo) => (
               <article key={photo.id} className="card overflow-hidden">
-                <div className="relative aspect-square bg-black/5">
-                  {photo.signed_url ? (
-                    <Image
-                      src={photo.signed_url}
-                      alt={photo.display_name ?? "Client photo"}
-                      fill
-                      sizes="(max-width: 640px) 100vw, 25vw"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
+                <PhotographerPhotoPreview
+                  src={photo.signed_url}
+                  name={photo.display_name ?? "Client photo"}
+                />
                 <div className="flex items-center justify-between gap-3 p-4">
                   <p className="min-w-0 truncate text-xs font-bold">{photo.display_name}</p>
                   <ConfirmDeleteButton

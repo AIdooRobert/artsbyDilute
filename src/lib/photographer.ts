@@ -68,22 +68,28 @@ export async function getPhotographerDashboard(userId: string) {
 }
 
 export async function getClientGallery(userId: string) {
-  const supabase = await createClient();
-  const { data: client } = await supabase
+  const admin = createAdminClient();
+  const { data: client, error: clientError } = await admin
     .from("photography_clients")
     .select("*, photographers(photographer_name, business_name, company_name, company_logo_url)")
     .eq("auth_user_id", userId)
     .maybeSingle();
 
+  if (clientError) {
+    console.error("Unable to load client gallery", clientError);
+    return null;
+  }
   if (!client) return null;
 
-  const { data: photos } = await supabase
+  const { data: photos, error: photosError } = await admin
     .from("client_photos")
     .select("*")
     .eq("client_id", client.id)
     .order("uploaded_at", { ascending: false });
+  if (photosError) {
+    console.error("Unable to load client photos", photosError);
+  }
 
-  const admin = createAdminClient();
   const withUrls = await Promise.all(
     ((photos as ClientPhoto[] | null) ?? []).map(async (photo) => {
       const { data } = await admin.storage

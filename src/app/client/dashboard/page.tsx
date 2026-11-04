@@ -13,21 +13,35 @@ export default async function ClientDashboard() {
   const gallery = await getClientGallery(user.id);
   if (!gallery) return null;
 
-  const photographer = gallery.client.photographers as {
-    photographer_name: string;
-    business_name: string | null;
-    company_name: string | null;
-    company_logo_url: string | null;
-  };
+  const photographerRelation = gallery.client.photographers as
+    | {
+        photographer_name: string;
+        business_name: string | null;
+        company_name: string | null;
+        company_logo_url: string | null;
+      }
+    | Array<{
+        photographer_name: string;
+        business_name: string | null;
+        company_name: string | null;
+        company_logo_url: string | null;
+      }>
+    | null;
+  const photographer = Array.isArray(photographerRelation)
+    ? photographerRelation[0] ?? null
+    : photographerRelation;
   const brandName =
-    photographer.company_name || photographer.business_name || photographer.photographer_name;
+    photographer?.company_name ||
+    photographer?.business_name ||
+    photographer?.photographer_name ||
+    "Your photographer";
 
   return (
     <main className="min-h-screen bg-[#f4f2ed]">
       <header className="border-b border-black/8 bg-white">
         <div className="container-shell flex min-h-18 items-center justify-between gap-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
-            {photographer.company_logo_url ? (
+            {photographer?.company_logo_url ? (
               <span className="relative size-10 shrink-0 overflow-hidden rounded-xl">
                 <Image
                   src={photographer.company_logo_url}
