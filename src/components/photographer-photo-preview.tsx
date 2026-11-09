@@ -34,7 +34,7 @@ export function PhotographerPhotoPreview({
         className="group relative block aspect-square w-full cursor-zoom-in overflow-hidden bg-black/5 focus-visible:outline-2 focus-visible:outline-copper"
         aria-label={`View ${name} full size`}
       >
-        <Image
+        <Image unoptimized
           src={src}
           alt={name}
           fill
@@ -67,7 +67,7 @@ export function PhotographerPhotoPreview({
             </button>
           </div>
           <div className="relative min-h-0 flex-1">
-            <Image src={src} alt={name} fill sizes="96vw" className="object-contain" />
+            <Image unoptimized src={src} alt={name} fill sizes="96vw" className="object-contain" />
           </div>
         </div>
       </dialog>

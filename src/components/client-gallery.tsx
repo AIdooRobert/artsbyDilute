@@ -24,7 +24,7 @@ export function ClientGallery({ photos }: { photos: ClientPhoto[] }) {
               onClick={() => setActive(photo)}
             >
               {photo.signed_url ? (
-                <Image
+                <Image unoptimized
                   src={photo.signed_url}
                   alt={photo.display_name ?? "Gallery photo"}
                   fill
@@ -70,7 +70,7 @@ export function ClientGallery({ photos }: { photos: ClientPhoto[] }) {
           </button>
           <div className="relative h-[82vh] w-[94vw]">
             {active.signed_url ? (
-              <Image
+              <Image unoptimized
                 src={active.signed_url}
                 alt={active.display_name ?? "Gallery photo"}
                 fill
